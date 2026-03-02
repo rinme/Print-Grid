@@ -78,8 +78,8 @@ function GenerateImage({ }) {
     setIsResultLoading(true);
 
     // Configurations for the result image
-    const marginPx = mmToPx(gridSettings.margin);
-    const spacingPx = mmToPx(gridSettings.spacing);
+    const marginPx = mmToPx(Number(gridSettings.margin) || 0);
+    const spacingPx = mmToPx(Number(gridSettings.spacing) || 0);
     const availableWidth = selectedSheetSize.width - (marginPx * 2);
     const availableHeight = selectedSheetSize.height - (marginPx * 2);
     const noOfColumns = Math.max(1, Math.floor((availableWidth + spacingPx) / (selectedImageSize.width + spacingPx)));
