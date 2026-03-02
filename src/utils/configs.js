@@ -24,6 +24,7 @@ export const RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY = 'sheetSizes';
 export const RESULT_IMAGE_COLUMN_GAP = 3; // px
 export const RESULT_IMAGE_ROW_GAP = 30; // px
 export const RESULT_IMAGE_BACKGROUND_COLOR = 'white';
+export const GRID_SETTINGS_LOCAL_STORAGE_KEY = 'gridSettings';
 
 // Download
 export const DOWNLOAD_RESULT_IMAGE_EXTENSION = 'png';

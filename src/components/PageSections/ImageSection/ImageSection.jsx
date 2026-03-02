@@ -127,6 +127,7 @@ function ImageSection({}) {
           selectedSize={selectedImageSize}
           setSelectedSize={setSelectedImageSize}
           localStorageKey={`${INPUT_IMAGE_SIZES_LOCAL_STORAGE_KEY}`}
+          aspectRatio={image.naturalWidth && image.naturalHeight ? image.naturalWidth / image.naturalHeight : null}
         />
         <ConfirmationDialog
           referrer={confirmClearCustomSizesRef}

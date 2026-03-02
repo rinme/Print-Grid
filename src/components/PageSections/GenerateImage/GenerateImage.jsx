@@ -5,6 +5,8 @@ import './GenerateImage.css';
 // Utils
 import { DOWNLOAD_RESULT_IMAGE_NAME, INPUT_IMAGE_BACKGROUND_COLOR, INPUT_IMAGE_BORDER_COLOR, INPUT_IMAGE_BORDER_WIDTH, RESULT_IMAGE_BACKGROUND_COLOR, RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY } from '../../../utils/configs.js';
 import { INITIAL_SHEET_SIZES } from '../../../utils/initialValues.js';
+import { mmToPx } from '../../../utils/converters.js';
+import { sanitizeNumericInputFromEvent } from '../../../utils/helpers.js';
 
 // Components
 import CustomSizeDialog from '../../Dialogs/CustomSizeDialog/CustomSizeDialog.jsx';
@@ -45,6 +47,8 @@ function GenerateImage({ }) {
     setSheetSizes,
     selectedSheetSize,
     setSelectedSheetSize,
+    gridSettings,
+    setGridSettings,
   } = useImage();
   const [resultImage, setResultImage] = useState(null);
   const [isDownloadDisabled, setIsDownloadDisabled] = useState(true);
@@ -74,10 +78,42 @@ function GenerateImage({ }) {
     setIsResultLoading(true);
 
     // Configurations for the result image
-    const columnGap = 3; // Gap between images in a column (px)
-    const rowGap = 30; // Gap between images in a row (px)
-    const noOfColumns = Math.floor(selectedSheetSize.width / (selectedImageSize.width + (columnGap * 2)));
-    const noOfRows = Math.floor(selectedSheetSize.height / (selectedImageSize.height + rowGap));
+    const marginPx = mmToPx(Number(gridSettings.margin) || 0);
+    const spacingPx = mmToPx(Number(gridSettings.spacing) || 0);
+    const availableWidth = selectedSheetSize.width - (marginPx * 2);
+    const availableHeight = selectedSheetSize.height - (marginPx * 2);
+    const calculatedColumns = Math.floor((availableWidth + spacingPx) / (selectedImageSize.width + spacingPx));
+    const calculatedRows = Math.floor((availableHeight + spacingPx) / (selectedImageSize.height + spacingPx));
+    const noOfColumns = calculatedColumns > 0 ? calculatedColumns : 0;
+    const noOfRows = calculatedRows > 0 ? calculatedRows : 0;
+
+    if (noOfColumns === 0 || noOfRows === 0) {
+      setIsResultLoading(false);
+      generatingResultFlag.current = false;
+      setIsDownloadDisabled(true);
+      alert(
+        'With the current sheet size, margins, spacing, and image size, nothing fits on the page. ' +
+        'Please adjust these settings and try again.'
+      );
+      return;
+    }
+
+    // Calculate total grid dimensions
+    const totalGridWidth = noOfColumns * selectedImageSize.width + (noOfColumns - 1) * spacingPx;
+    const totalGridHeight = noOfRows * selectedImageSize.height + (noOfRows - 1) * spacingPx;
+
+    // Calculate starting position based on centering options
+    let startX, startY;
+    if (gridSettings.centerHorizontally) {
+      startX = (selectedSheetSize.width - totalGridWidth) / 2;
+    } else {
+      startX = marginPx;
+    }
+    if (gridSettings.centerVertically) {
+      startY = (selectedSheetSize.height - totalGridHeight) / 2;
+    } else {
+      startY = marginPx;
+    }
 
     // Canvas for the final sheet image
     const resultImageCanvas = document.createElement('canvas');
@@ -147,8 +183,8 @@ function GenerateImage({ }) {
           for (let j = 0; j < noOfRows; j++) {
             resultImageCtx.drawImage(
               inputImageCanvas,
-              (i * (selectedImageSize.width + columnGap)) + (columnGap * (i + 1)),
-              (j * (selectedImageSize.height + rowGap)) + rowGap,
+              startX + i * (selectedImageSize.width + spacingPx),
+              startY + j * (selectedImageSize.height + spacingPx),
               selectedImageSize.width,
               selectedImageSize.height
             );
@@ -189,6 +225,10 @@ function GenerateImage({ }) {
     localStorage.removeItem(RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY);
   }
 
+  const handleGridSettingChange = (key, value) => {
+    setGridSettings(prev => ({ ...prev, [key]: value }));
+  }
+
   return (
     <section className={`section generate-image-section 
     ${(isGenerateDisabled && !resultImage) ? 'section-disabled' : ''}`}>
@@ -225,6 +265,70 @@ function GenerateImage({ }) {
         />
         <button className='primary-button topbar-button' onClick={generateResultImage} disabled={isGenerateDisabled}>Generate</button>
         <button className='primary-button topbar-button' onClick={downloadImage} disabled={isDownloadDisabled}>Download</button>
+      </div>
+      <div className='grid-settings'>
+        <div className='grid-settings-inputs'>
+          <label className='grid-setting'>
+            <span>Margin</span>
+            <input
+              type='text'
+              className='grid-setting-input'
+              value={gridSettings.margin}
+              onChange={(e) => {
+                sanitizeNumericInputFromEvent(e);
+                handleGridSettingChange('margin', e.target.value);
+              }}
+              onBlur={(e) => {
+                const numericValue = Number(e.target.value);
+                if (e.target.value === '' || isNaN(numericValue)) {
+                  handleGridSettingChange('margin', 0);
+                } else {
+                  handleGridSettingChange('margin', numericValue);
+                }
+              }}
+            />
+            <span className='grid-setting-unit'>mm</span>
+          </label>
+          <label className='grid-setting'>
+            <span>Spacing</span>
+            <input
+              type='text'
+              className='grid-setting-input'
+              value={gridSettings.spacing}
+              onChange={(e) => {
+                sanitizeNumericInputFromEvent(e);
+                handleGridSettingChange('spacing', e.target.value);
+              }}
+              onBlur={(e) => {
+                const value = e.target.value.trim();
+                if (value === '' || isNaN(Number(value))) {
+                  handleGridSettingChange('spacing', 0);
+                } else {
+                  handleGridSettingChange('spacing', Number(value));
+                }
+              }}
+            />
+            <span className='grid-setting-unit'>mm</span>
+          </label>
+        </div>
+        <div className='grid-settings-checkboxes'>
+          <label className='grid-setting-checkbox'>
+            <input
+              type='checkbox'
+              checked={gridSettings.centerHorizontally}
+              onChange={(e) => handleGridSettingChange('centerHorizontally', e.target.checked)}
+            />
+            <span>Center horizontally</span>
+          </label>
+          <label className='grid-setting-checkbox'>
+            <input
+              type='checkbox'
+              checked={gridSettings.centerVertically}
+              onChange={(e) => handleGridSettingChange('centerVertically', e.target.checked)}
+            />
+            <span>Center vertically</span>
+          </label>
+        </div>
       </div>
       <div className='generate-image-section-main'>
         {resultImage && !isResultLoading ?

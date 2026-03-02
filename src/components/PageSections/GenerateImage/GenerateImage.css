@@ -18,3 +18,63 @@
   max-height: 100%;
   /* max-height: 100%; */
 }
+
+.grid-settings {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--app-gap);
+  padding: 0 var(--app-gap);
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-settings-inputs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--app-gap);
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-setting {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5ch;
+  font-size: 0.85rem;
+}
+
+.grid-setting-input {
+  width: 5ch;
+  border: none;
+  background-color: var(--background);
+  color: var(--text);
+  padding: 2px 4px;
+  border-radius: var(--button-radius);
+  text-align: center;
+}
+
+.grid-setting-unit {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.grid-settings-checkboxes {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--app-gap);
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-setting-checkbox {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3ch;
+  font-size: 0.85rem;
+  cursor: pointer;
+}

@@ -1,7 +1,7 @@
 import { useContext, createContext, useState, useRef, useEffect } from "react";
 import { useChangeManagement } from "./ChangeManagementContext";
-import { INITIAL_IMAGE_SIZES, INITIAL_IMAGE_STATE, INITIAL_SHEET_SIZES } from "../utils/initialValues";
-import { INPUT_IMAGE_SIZES_LOCAL_STORAGE_KEY, LAST_IS_BORDERED_VALUE_LOCAL_STORAGE_KEY, LAST_SELECTED_IMAGE_SIZE_LOCAL_STORAGE_KEY, LAST_SELECTED_SHEET_SIZE_LOCAL_STORAGE_KEY, RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY } from "../utils/configs";
+import { INITIAL_IMAGE_SIZES, INITIAL_IMAGE_STATE, INITIAL_SHEET_SIZES, INITIAL_GRID_SETTINGS } from "../utils/initialValues";
+import { INPUT_IMAGE_SIZES_LOCAL_STORAGE_KEY, LAST_IS_BORDERED_VALUE_LOCAL_STORAGE_KEY, LAST_SELECTED_IMAGE_SIZE_LOCAL_STORAGE_KEY, LAST_SELECTED_SHEET_SIZE_LOCAL_STORAGE_KEY, RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY, GRID_SETTINGS_LOCAL_STORAGE_KEY } from "../utils/configs";
 
 const ImageContext = createContext();
 
@@ -57,11 +57,26 @@ export function ImageProvider({ children }) {
       :
       sheetSizes[0]
   );
+  const [gridSettings, setGridSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem(GRID_SETTINGS_LOCAL_STORAGE_KEY);
+      if (stored) {
+        return { ...INITIAL_GRID_SETTINGS, ...JSON.parse(stored) };
+      }
+    } catch {
+      // Ignore malformed localStorage data
+    }
+    return { ...INITIAL_GRID_SETTINGS };
+  });
 
   useEffect(() => {
     localStorage.setItem(LAST_SELECTED_IMAGE_SIZE_LOCAL_STORAGE_KEY, JSON.stringify(selectedImageSize));
     localStorage.setItem(LAST_SELECTED_SHEET_SIZE_LOCAL_STORAGE_KEY, JSON.stringify(selectedSheetSize));
   }, [selectedImageSize, selectedSheetSize]);
+
+  useEffect(() => {
+    localStorage.setItem(GRID_SETTINGS_LOCAL_STORAGE_KEY, JSON.stringify(gridSettings));
+  }, [gridSettings]);
 
   useEffect(() => {
     localStorage.setItem(LAST_IS_BORDERED_VALUE_LOCAL_STORAGE_KEY, JSON.stringify(isBordered));
@@ -168,6 +183,8 @@ export function ImageProvider({ children }) {
       setSelectedImageSize,
       selectedSheetSize,
       setSelectedSheetSize,
+      gridSettings,
+      setGridSettings,
       applyChangesToImage
     }}>
       {children}

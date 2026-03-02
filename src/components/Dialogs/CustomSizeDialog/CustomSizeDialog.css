@@ -42,6 +42,15 @@
   gap: 1ch;
 }
 
+.lock-aspect-ratio-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5ch;
+  margin-top: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
 @media screen and (max-width: 507px) {
   .custom-image-size-input {
     grid-template-columns: 5ch 0.5fr 6.5ch;
