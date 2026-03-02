@@ -55,3 +55,11 @@ export const INITIAL_IMAGE_STATE = {
   naturalHeight: false,
   naturalWidth: false
 }
+
+// Grid settings (margin and spacing values in mm)
+export const INITIAL_GRID_SETTINGS = {
+  margin: 2,
+  spacing: 1,
+  centerHorizontally: true,
+  centerVertically: true,
+}
