@@ -57,13 +57,17 @@ export function ImageProvider({ children }) {
       :
       sheetSizes[0]
   );
-  const [gridSettings, setGridSettings] = useState(
-    (localStorage.getItem(GRID_SETTINGS_LOCAL_STORAGE_KEY))
-      ?
-      { ...INITIAL_GRID_SETTINGS, ...JSON.parse(localStorage.getItem(GRID_SETTINGS_LOCAL_STORAGE_KEY)) }
-      :
-      { ...INITIAL_GRID_SETTINGS }
-  );
+  const [gridSettings, setGridSettings] = useState(() => {
+    try {
+      const stored = localStorage.getItem(GRID_SETTINGS_LOCAL_STORAGE_KEY);
+      if (stored) {
+        return { ...INITIAL_GRID_SETTINGS, ...JSON.parse(stored) };
+      }
+    } catch {
+      // Ignore malformed localStorage data
+    }
+    return { ...INITIAL_GRID_SETTINGS };
+  });
 
   useEffect(() => {
     localStorage.setItem(LAST_SELECTED_IMAGE_SIZE_LOCAL_STORAGE_KEY, JSON.stringify(selectedImageSize));

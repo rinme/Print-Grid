@@ -82,8 +82,21 @@ function GenerateImage({ }) {
     const spacingPx = mmToPx(Number(gridSettings.spacing) || 0);
     const availableWidth = selectedSheetSize.width - (marginPx * 2);
     const availableHeight = selectedSheetSize.height - (marginPx * 2);
-    const noOfColumns = Math.max(1, Math.floor((availableWidth + spacingPx) / (selectedImageSize.width + spacingPx)));
-    const noOfRows = Math.max(1, Math.floor((availableHeight + spacingPx) / (selectedImageSize.height + spacingPx)));
+    const calculatedColumns = Math.floor((availableWidth + spacingPx) / (selectedImageSize.width + spacingPx));
+    const calculatedRows = Math.floor((availableHeight + spacingPx) / (selectedImageSize.height + spacingPx));
+    const noOfColumns = calculatedColumns > 0 ? calculatedColumns : 0;
+    const noOfRows = calculatedRows > 0 ? calculatedRows : 0;
+
+    if (noOfColumns === 0 || noOfRows === 0) {
+      setIsResultLoading(false);
+      generatingResultFlag.current = false;
+      setIsDownloadDisabled(true);
+      alert(
+        'With the current sheet size, margins, spacing, and image size, nothing fits on the page. ' +
+        'Please adjust these settings and try again.'
+      );
+      return;
+    }
 
     // Calculate total grid dimensions
     const totalGridWidth = noOfColumns * selectedImageSize.width + (noOfColumns - 1) * spacingPx;
@@ -263,10 +276,15 @@ function GenerateImage({ }) {
               value={gridSettings.margin}
               onChange={(e) => {
                 sanitizeNumericInputFromEvent(e);
-                handleGridSettingChange('margin', e.target.value === '' ? '' : Number(e.target.value));
+                handleGridSettingChange('margin', e.target.value);
               }}
               onBlur={(e) => {
-                if (e.target.value === '' || isNaN(Number(e.target.value))) handleGridSettingChange('margin', 0);
+                const numericValue = Number(e.target.value);
+                if (e.target.value === '' || isNaN(numericValue)) {
+                  handleGridSettingChange('margin', 0);
+                } else {
+                  handleGridSettingChange('margin', numericValue);
+                }
               }}
             />
             <span className='grid-setting-unit'>mm</span>
@@ -279,10 +297,15 @@ function GenerateImage({ }) {
               value={gridSettings.spacing}
               onChange={(e) => {
                 sanitizeNumericInputFromEvent(e);
-                handleGridSettingChange('spacing', e.target.value === '' ? '' : Number(e.target.value));
+                handleGridSettingChange('spacing', e.target.value);
               }}
               onBlur={(e) => {
-                if (e.target.value === '' || isNaN(Number(e.target.value))) handleGridSettingChange('spacing', 0);
+                const value = e.target.value.trim();
+                if (value === '' || isNaN(Number(value))) {
+                  handleGridSettingChange('spacing', 0);
+                } else {
+                  handleGridSettingChange('spacing', Number(value));
+                }
               }}
             />
             <span className='grid-setting-unit'>mm</span>
