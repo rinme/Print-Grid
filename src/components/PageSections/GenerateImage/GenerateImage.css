@@ -56,6 +56,10 @@
   text-align: center;
 }
 
+.grid-setting-input-dpi {
+  width: 6ch;
+}
+
 .grid-setting-unit {
   font-size: 0.8rem;
   opacity: 0.7;
@@ -77,4 +81,23 @@
   gap: 0.3ch;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+.grid-settings-selectors {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--app-gap);
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-setting-select {
+  border: none;
+  background-color: var(--background);
+  color: var(--text);
+  padding: 2px 4px;
+  border-radius: var(--button-radius);
+  cursor: pointer;
+  font-size: 0.85rem;
 }

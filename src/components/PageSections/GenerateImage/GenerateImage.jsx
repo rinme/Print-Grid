@@ -3,7 +3,7 @@ import '../PageSections.css';
 import './GenerateImage.css';
 
 // Utils
-import { DOWNLOAD_RESULT_IMAGE_NAME, INPUT_IMAGE_BACKGROUND_COLOR, INPUT_IMAGE_BORDER_COLOR, INPUT_IMAGE_BORDER_WIDTH, RESULT_IMAGE_BACKGROUND_COLOR, RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY } from '../../../utils/configs.js';
+import { DOWNLOAD_RESULT_IMAGE_NAME, INPUT_IMAGE_BACKGROUND_COLOR, INPUT_IMAGE_BORDER_COLOR, INPUT_IMAGE_BORDER_WIDTH, RESULT_IMAGE_BACKGROUND_COLOR, RESULT_IMAGE_SHEET_SIZES_LOCAL_STORAGE_KEY, COLOR_PROFILES, PRINT_DPI, MIN_OUTPUT_DPI, MAX_OUTPUT_DPI } from '../../../utils/configs.js';
 import { INITIAL_SHEET_SIZES } from '../../../utils/initialValues.js';
 import { mmToPx } from '../../../utils/converters.js';
 import { sanitizeNumericInputFromEvent } from '../../../utils/helpers.js';
@@ -31,6 +31,69 @@ function getCanvasFiltersFromImage(image) {
     sepia(${image.sepia / 200})
     hue-rotate(${(image.hueRotate / 2)}deg)
   `);
+}
+
+function clampDpi(value) {
+  const num = Number(value);
+  if (isNaN(num) || num === 0) return MIN_OUTPUT_DPI;
+  const clamped = Math.min(MAX_OUTPUT_DPI, Math.max(MIN_OUTPUT_DPI, num));
+  return Math.round(clamped);
+}
+
+function applyColorProfile(canvas, colorProfile) {
+  if (colorProfile === 'rgb') return;
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const width = canvas.width;
+  const height = canvas.height;
+  if (!width || !height) return;
+
+  // Process the canvas in vertical stripes to avoid allocating a single,
+  // very large ImageData object for high-DPI / large-format canvases.
+  const MAX_PIXELS_PER_CHUNK = 10_000_000; // ~40MB of RGBA data
+  const stripeHeight = Math.max(1, Math.floor(MAX_PIXELS_PER_CHUNK / width));
+
+  for (let startY = 0; startY < height; startY += stripeHeight) {
+    const currentStripeHeight = Math.min(stripeHeight, height - startY);
+    const imageData = ctx.getImageData(0, startY, width, currentStripeHeight);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      if (colorProfile === 'grayscale') {
+        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+      } else if (colorProfile === 'cmyk') {
+        const rn = r / 255;
+        const gn = g / 255;
+        const bn = b / 255;
+        const k = 1 - Math.max(rn, gn, bn);
+
+        if (k === 1) {
+          data[i] = 0;
+          data[i + 1] = 0;
+          data[i + 2] = 0;
+        } else {
+          const c = (1 - rn - k) / (1 - k);
+          const m = (1 - gn - k) / (1 - k);
+          const y = (1 - bn - k) / (1 - k);
+          data[i] = Math.round(255 * (1 - c) * (1 - k));
+          data[i + 1] = Math.round(255 * (1 - m) * (1 - k));
+          data[i + 2] = Math.round(255 * (1 - y) * (1 - k));
+        }
+      }
+    }
+
+    ctx.putImageData(imageData, 0, startY);
+  }
 }
 
 function GenerateImage({ }) {
@@ -78,6 +141,8 @@ function GenerateImage({ }) {
     setIsResultLoading(true);
 
     // Configurations for the result image
+    const dpi = clampDpi(gridSettings.dpi);
+    const dpiScale = dpi / PRINT_DPI;
     const marginPx = mmToPx(Number(gridSettings.margin) || 0);
     const spacingPx = mmToPx(Number(gridSettings.spacing) || 0);
     const availableWidth = selectedSheetSize.width - (marginPx * 2);
@@ -98,71 +163,81 @@ function GenerateImage({ }) {
       return;
     }
 
-    // Calculate total grid dimensions
-    const totalGridWidth = noOfColumns * selectedImageSize.width + (noOfColumns - 1) * spacingPx;
-    const totalGridHeight = noOfRows * selectedImageSize.height + (noOfRows - 1) * spacingPx;
+    // Calculate total grid dimensions (scaled for output DPI)
+    const scaledImageWidth = Math.round(selectedImageSize.width * dpiScale);
+    const scaledImageHeight = Math.round(selectedImageSize.height * dpiScale);
+    const scaledSpacingPx = Math.round(spacingPx * dpiScale);
+    const totalGridWidth = noOfColumns * scaledImageWidth + (noOfColumns - 1) * scaledSpacingPx;
+    const totalGridHeight = noOfRows * scaledImageHeight + (noOfRows - 1) * scaledSpacingPx;
+    const scaledSheetWidth = Math.round(selectedSheetSize.width * dpiScale);
+    const scaledSheetHeight = Math.round(selectedSheetSize.height * dpiScale);
+    const scaledMarginPx = Math.round(marginPx * dpiScale);
 
     // Calculate starting position based on centering options
     let startX, startY;
     if (gridSettings.centerHorizontally) {
-      startX = (selectedSheetSize.width - totalGridWidth) / 2;
+      startX = Math.round((scaledSheetWidth - totalGridWidth) / 2);
     } else {
-      startX = marginPx;
+      startX = scaledMarginPx;
     }
     if (gridSettings.centerVertically) {
-      startY = (selectedSheetSize.height - totalGridHeight) / 2;
+      startY = Math.round((scaledSheetHeight - totalGridHeight) / 2);
     } else {
-      startY = marginPx;
+      startY = scaledMarginPx;
     }
 
     // Canvas for the final sheet image
     const resultImageCanvas = document.createElement('canvas');
     const resultImageCtx = resultImageCanvas.getContext('2d');
-    resultImageCanvas.width = selectedSheetSize.width;
-    resultImageCanvas.height = selectedSheetSize.height;
-    resultImageCtx.fillStyle = RESULT_IMAGE_BACKGROUND_COLOR;
-    resultImageCtx.fillRect(0, 0, resultImageCanvas.width, resultImageCanvas.height);
+    resultImageCanvas.width = scaledSheetWidth;
+    resultImageCanvas.height = scaledSheetHeight;
+    if (!gridSettings.transparentBackground) {
+      resultImageCtx.fillStyle = RESULT_IMAGE_BACKGROUND_COLOR;
+      resultImageCtx.fillRect(0, 0, resultImageCanvas.width, resultImageCanvas.height);
+    }
 
     try {
       const url = await applyChangesToImage();
 
       const inputImage = new Image();
       inputImage.onload = () => {
-        // Canvas for the input image
+        // Canvas for the input image (scaled for output DPI)
         const inputImageCanvas = document.createElement('canvas');
         const inputImageCtx = inputImageCanvas.getContext('2d');
-        inputImageCanvas.width = selectedImageSize.width;
-        inputImageCanvas.height = selectedImageSize.height;
-        inputImageCtx.fillStyle = INPUT_IMAGE_BACKGROUND_COLOR;
-        inputImageCtx.fillRect(0, 0, inputImageCanvas.width, inputImageCanvas.height);
+        inputImageCanvas.width = scaledImageWidth;
+        inputImageCanvas.height = scaledImageHeight;
+        if (!gridSettings.transparentBackground) {
+          inputImageCtx.fillStyle = INPUT_IMAGE_BACKGROUND_COLOR;
+          inputImageCtx.fillRect(0, 0, inputImageCanvas.width, inputImageCanvas.height);
+        }
         inputImageCtx.filter = getCanvasFiltersFromImage(image);
 
         // Adjust and center the image to fit the selected image size
         let newWidth, newHeight, x, y;
-        newWidth = selectedImageSize.width;
-        newHeight = (inputImage.naturalHeight / inputImage.naturalWidth) * selectedImageSize.width;
+        newWidth = scaledImageWidth;
+        newHeight = (inputImage.naturalHeight / inputImage.naturalWidth) * scaledImageWidth;
         x = 0;
-        y = -((newHeight / 2) - (selectedImageSize.height / 2));
-        if (newHeight < selectedImageSize.height) {
-          newWidth = (inputImage.naturalWidth / inputImage.naturalHeight) * selectedImageSize.height;
-          newHeight = selectedImageSize.height;
-          x = -((newWidth / 2) - (selectedImageSize.width / 2));
+        y = -((newHeight / 2) - (scaledImageHeight / 2));
+        if (newHeight < scaledImageHeight) {
+          newWidth = (inputImage.naturalWidth / inputImage.naturalHeight) * scaledImageHeight;
+          newHeight = scaledImageHeight;
+          x = -((newWidth / 2) - (scaledImageWidth / 2));
           y = 0;
         }
         inputImageCtx.drawImage(inputImage, x, y, newWidth, newHeight);
 
         if (isBordered) { // Add border to the image
           // Border configurations
-          let borderWidth = INPUT_IMAGE_BORDER_WIDTH;
-          // Adjust border width according to the size of the image
+          let borderWidth = Math.round(INPUT_IMAGE_BORDER_WIDTH * dpiScale);
+          // Adjust border width according to the size of the image (using unscaled dimensions for consistent behavior)
           if ((selectedImageSize.width < 10) || (selectedImageSize.height < 10)) borderWidth = 0;
           else if ((selectedImageSize.width < 30) || (selectedImageSize.height < 30)) borderWidth = 1;
 
           // Canvas for the bordered input image
           const borderedInputImageCanvas = document.createElement('canvas');
           const borderedInputImageCtx = borderedInputImageCanvas.getContext('2d');
-          borderedInputImageCanvas.width = selectedImageSize.width;
-          borderedInputImageCanvas.height = selectedImageSize.height;
+          borderedInputImageCanvas.width = scaledImageWidth;
+          borderedInputImageCanvas.height = scaledImageHeight;
           borderedInputImageCtx.fillStyle = INPUT_IMAGE_BORDER_COLOR;
           borderedInputImageCtx.fillRect(0, 0, borderedInputImageCanvas.width, borderedInputImageCanvas.height);
 
@@ -170,12 +245,12 @@ function GenerateImage({ }) {
             inputImageCanvas,
             borderWidth,
             borderWidth,
-            selectedImageSize.width - (borderWidth * 2),
-            selectedImageSize.height - (borderWidth * 2)
+            scaledImageWidth - (borderWidth * 2),
+            scaledImageHeight - (borderWidth * 2)
           );
 
           // Draw the bordered input image on the input image canvas: overlapping the original input image without borders
-          inputImageCtx.drawImage(borderedInputImageCanvas, 0, 0, selectedImageSize.width, selectedImageSize.height);
+          inputImageCtx.drawImage(borderedInputImageCanvas, 0, 0, scaledImageWidth, scaledImageHeight);
         }
 
         // Draw the input image on the result canvas
@@ -183,13 +258,16 @@ function GenerateImage({ }) {
           for (let j = 0; j < noOfRows; j++) {
             resultImageCtx.drawImage(
               inputImageCanvas,
-              startX + i * (selectedImageSize.width + spacingPx),
-              startY + j * (selectedImageSize.height + spacingPx),
-              selectedImageSize.width,
-              selectedImageSize.height
+              startX + i * (scaledImageWidth + scaledSpacingPx),
+              startY + j * (scaledImageHeight + scaledSpacingPx),
+              scaledImageWidth,
+              scaledImageHeight
             );
           }
         }
+
+        // Apply color profile transformation
+        applyColorProfile(resultImageCanvas, gridSettings.colorProfile);
 
         // Setting the result image and reset the flags and states
         setResultImage(resultImageCanvas.toDataURL('image/png'));
@@ -310,6 +388,21 @@ function GenerateImage({ }) {
             />
             <span className='grid-setting-unit'>mm</span>
           </label>
+          <label className='grid-setting'>
+            <span>DPI</span>
+            <input
+              type='text'
+              className='grid-setting-input grid-setting-input-dpi'
+              value={gridSettings.dpi}
+              onChange={(e) => {
+                sanitizeNumericInputFromEvent(e);
+                handleGridSettingChange('dpi', e.target.value);
+              }}
+              onBlur={(e) => {
+                handleGridSettingChange('dpi', clampDpi(e.target.value));
+              }}
+            />
+          </label>
         </div>
         <div className='grid-settings-checkboxes'>
           <label className='grid-setting-checkbox'>
@@ -327,6 +420,28 @@ function GenerateImage({ }) {
               onChange={(e) => handleGridSettingChange('centerVertically', e.target.checked)}
             />
             <span>Center vertically</span>
+          </label>
+          <label className='grid-setting-checkbox'>
+            <input
+              type='checkbox'
+              checked={gridSettings.transparentBackground}
+              onChange={(e) => handleGridSettingChange('transparentBackground', e.target.checked)}
+            />
+            <span>Transparent background</span>
+          </label>
+        </div>
+        <div className='grid-settings-selectors'>
+          <label className='grid-setting'>
+            <span>Color Profile</span>
+            <select
+              className='grid-setting-select'
+              value={gridSettings.colorProfile}
+              onChange={(e) => handleGridSettingChange('colorProfile', e.target.value)}
+            >
+              {COLOR_PROFILES.map(profile => (
+                <option value={profile.value} key={profile.value}>{profile.name}</option>
+              ))}
+            </select>
           </label>
         </div>
       </div>
