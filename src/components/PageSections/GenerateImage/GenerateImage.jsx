@@ -33,6 +33,12 @@ function getCanvasFiltersFromImage(image) {
   `);
 }
 
+function clampDpi(value) {
+  const num = Number(value);
+  if (isNaN(num) || num === 0) return MIN_OUTPUT_DPI;
+  return Math.min(MAX_OUTPUT_DPI, Math.max(MIN_OUTPUT_DPI, num));
+}
+
 function applyColorProfile(canvas, colorProfile) {
   if (colorProfile === 'rgb') return;
   const ctx = canvas.getContext('2d');
@@ -108,7 +114,7 @@ function GenerateImage({ }) {
     setIsResultLoading(true);
 
     // Configurations for the result image
-    const dpi = Math.min(MAX_OUTPUT_DPI, Math.max(MIN_OUTPUT_DPI, Number(gridSettings.dpi) || PRINT_DPI));
+    const dpi = clampDpi(gridSettings.dpi);
     const dpiScale = dpi / PRINT_DPI;
     const marginPx = mmToPx(Number(gridSettings.margin) || 0);
     const spacingPx = mmToPx(Number(gridSettings.spacing) || 0);
@@ -196,9 +202,9 @@ function GenerateImage({ }) {
         if (isBordered) { // Add border to the image
           // Border configurations
           let borderWidth = Math.round(INPUT_IMAGE_BORDER_WIDTH * dpiScale);
-          // Adjust border width according to the size of the image
-          if ((scaledImageWidth < 10) || (scaledImageHeight < 10)) borderWidth = 0;
-          else if ((scaledImageWidth < 30) || (scaledImageHeight < 30)) borderWidth = 1;
+          // Adjust border width according to the size of the image (using unscaled dimensions for consistent behavior)
+          if ((selectedImageSize.width < 10) || (selectedImageSize.height < 10)) borderWidth = 0;
+          else if ((selectedImageSize.width < 30) || (selectedImageSize.height < 30)) borderWidth = 1;
 
           // Canvas for the bordered input image
           const borderedInputImageCanvas = document.createElement('canvas');
@@ -366,12 +372,7 @@ function GenerateImage({ }) {
                 handleGridSettingChange('dpi', e.target.value);
               }}
               onBlur={(e) => {
-                const value = Number(e.target.value);
-                if (e.target.value === '' || isNaN(value)) {
-                  handleGridSettingChange('dpi', MIN_OUTPUT_DPI);
-                } else {
-                  handleGridSettingChange('dpi', Math.min(MAX_OUTPUT_DPI, Math.max(MIN_OUTPUT_DPI, value)));
-                }
+                handleGridSettingChange('dpi', clampDpi(e.target.value));
               }}
             />
           </label>
