@@ -2,6 +2,8 @@
 export const CM_PER_INCH = 2.54;
 export const PIXEL_ROUNDING_FACTOR = 2.54 / 2.5; // Factor to round cm to px conversion, preserving aspect ratio.
 export const PRINT_DPI = 300;
+export const MIN_OUTPUT_DPI = 300;
+export const MAX_OUTPUT_DPI = 600;
 
 // History
 export const HISTORY_LIMIT = 10;
@@ -25,6 +27,13 @@ export const RESULT_IMAGE_COLUMN_GAP = 3; // px
 export const RESULT_IMAGE_ROW_GAP = 30; // px
 export const RESULT_IMAGE_BACKGROUND_COLOR = 'white';
 export const GRID_SETTINGS_LOCAL_STORAGE_KEY = 'gridSettings';
+
+// Color profiles
+export const COLOR_PROFILES = [
+  { name: 'RGB', value: 'rgb' },
+  { name: 'CMYK', value: 'cmyk' },
+  { name: 'Grayscale', value: 'grayscale' },
+];
 
 // Download
 export const DOWNLOAD_RESULT_IMAGE_EXTENSION = 'png';

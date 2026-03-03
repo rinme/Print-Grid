@@ -62,4 +62,7 @@ export const INITIAL_GRID_SETTINGS = {
   spacing: 1,
   centerHorizontally: true,
   centerVertically: true,
+  transparentBackground: false,
+  colorProfile: 'rgb',
+  dpi: 300,
 }
