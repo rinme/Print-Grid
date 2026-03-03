@@ -36,37 +36,64 @@ function getCanvasFiltersFromImage(image) {
 function clampDpi(value) {
   const num = Number(value);
   if (isNaN(num) || num === 0) return MIN_OUTPUT_DPI;
-  return Math.min(MAX_OUTPUT_DPI, Math.max(MIN_OUTPUT_DPI, num));
+  const clamped = Math.min(MAX_OUTPUT_DPI, Math.max(MIN_OUTPUT_DPI, num));
+  return Math.round(clamped);
 }
 
 function applyColorProfile(canvas, colorProfile) {
   if (colorProfile === 'rgb') return;
+  if (!canvas) return;
+
   const ctx = canvas.getContext('2d');
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i], g = data[i + 1], b = data[i + 2];
-    if (colorProfile === 'grayscale') {
-      const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-      data[i] = gray;
-      data[i + 1] = gray;
-      data[i + 2] = gray;
-    } else if (colorProfile === 'cmyk') {
-      const rn = r / 255, gn = g / 255, bn = b / 255;
-      const k = 1 - Math.max(rn, gn, bn);
-      if (k === 1) {
-        data[i] = 0; data[i + 1] = 0; data[i + 2] = 0;
-      } else {
-        const c = (1 - rn - k) / (1 - k);
-        const m = (1 - gn - k) / (1 - k);
-        const y = (1 - bn - k) / (1 - k);
-        data[i] = Math.round(255 * (1 - c) * (1 - k));
-        data[i + 1] = Math.round(255 * (1 - m) * (1 - k));
-        data[i + 2] = Math.round(255 * (1 - y) * (1 - k));
+  if (!ctx) return;
+
+  const width = canvas.width;
+  const height = canvas.height;
+  if (!width || !height) return;
+
+  // Process the canvas in vertical stripes to avoid allocating a single,
+  // very large ImageData object for high-DPI / large-format canvases.
+  const MAX_PIXELS_PER_CHUNK = 10_000_000; // ~40MB of RGBA data
+  const stripeHeight = Math.max(1, Math.floor(MAX_PIXELS_PER_CHUNK / width));
+
+  for (let startY = 0; startY < height; startY += stripeHeight) {
+    const currentStripeHeight = Math.min(stripeHeight, height - startY);
+    const imageData = ctx.getImageData(0, startY, width, currentStripeHeight);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+
+      if (colorProfile === 'grayscale') {
+        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+        data[i] = gray;
+        data[i + 1] = gray;
+        data[i + 2] = gray;
+      } else if (colorProfile === 'cmyk') {
+        const rn = r / 255;
+        const gn = g / 255;
+        const bn = b / 255;
+        const k = 1 - Math.max(rn, gn, bn);
+
+        if (k === 1) {
+          data[i] = 0;
+          data[i + 1] = 0;
+          data[i + 2] = 0;
+        } else {
+          const c = (1 - rn - k) / (1 - k);
+          const m = (1 - gn - k) / (1 - k);
+          const y = (1 - bn - k) / (1 - k);
+          data[i] = Math.round(255 * (1 - c) * (1 - k));
+          data[i + 1] = Math.round(255 * (1 - m) * (1 - k));
+          data[i + 2] = Math.round(255 * (1 - y) * (1 - k));
+        }
       }
     }
+
+    ctx.putImageData(imageData, 0, startY);
   }
-  ctx.putImageData(imageData, 0, 0);
 }
 
 function GenerateImage({ }) {
@@ -137,24 +164,24 @@ function GenerateImage({ }) {
     }
 
     // Calculate total grid dimensions (scaled for output DPI)
-    const scaledImageWidth = selectedImageSize.width * dpiScale;
-    const scaledImageHeight = selectedImageSize.height * dpiScale;
-    const scaledSpacingPx = spacingPx * dpiScale;
+    const scaledImageWidth = Math.round(selectedImageSize.width * dpiScale);
+    const scaledImageHeight = Math.round(selectedImageSize.height * dpiScale);
+    const scaledSpacingPx = Math.round(spacingPx * dpiScale);
     const totalGridWidth = noOfColumns * scaledImageWidth + (noOfColumns - 1) * scaledSpacingPx;
     const totalGridHeight = noOfRows * scaledImageHeight + (noOfRows - 1) * scaledSpacingPx;
-    const scaledSheetWidth = selectedSheetSize.width * dpiScale;
-    const scaledSheetHeight = selectedSheetSize.height * dpiScale;
-    const scaledMarginPx = marginPx * dpiScale;
+    const scaledSheetWidth = Math.round(selectedSheetSize.width * dpiScale);
+    const scaledSheetHeight = Math.round(selectedSheetSize.height * dpiScale);
+    const scaledMarginPx = Math.round(marginPx * dpiScale);
 
     // Calculate starting position based on centering options
     let startX, startY;
     if (gridSettings.centerHorizontally) {
-      startX = (scaledSheetWidth - totalGridWidth) / 2;
+      startX = Math.round((scaledSheetWidth - totalGridWidth) / 2);
     } else {
       startX = scaledMarginPx;
     }
     if (gridSettings.centerVertically) {
-      startY = (scaledSheetHeight - totalGridHeight) / 2;
+      startY = Math.round((scaledSheetHeight - totalGridHeight) / 2);
     } else {
       startY = scaledMarginPx;
     }
